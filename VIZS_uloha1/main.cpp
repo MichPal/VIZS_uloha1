@@ -1,89 +1,76 @@
-#include "opencv2/core/utility.hpp"
-#include "opencv2/imgproc.hpp"
-#include "opencv2/imgcodecs.hpp"
-#include "opencv2/highgui.hpp"
-
-#include <stdio.h>
+#include "opencv2/highgui/highgui.hpp"
+#include <iostream>
+#include <ctime>
+#include <chrono>
 
 using namespace cv;
 using namespace std;
 
-int edgeThresh = 1;
-int edgeThreshScharr = 1;
-
-Mat image, gray, blurImage, edge1, edge2, cedge;
-
-const char* window_name1 = "Edge map : Canny default (Sobel gradient)";
-const char* window_name2 = "Edge map : Canny with custom gradient (Scharr)";
-
-// define a trackbar callback
-static void onTrackbar(int, void*)
+int main(int argc, char* argv[])
 {
-	blur(gray, blurImage, Size(3, 3));
+	VideoCapture cap(1); // open the video camera no. 0
 
-	// Run the edge detector on grayscale
-	Canny(blurImage, edge1, edgeThresh, edgeThresh * 3, 3);
-	cedge = Scalar::all(0);
-
-	image.copyTo(cedge, edge1);
-	imshow(window_name1, cedge);
-
-	/// Canny detector with scharr
-	Mat dx, dy;
-	Scharr(blurImage, dx, CV_16S, 1, 0);
-	Scharr(blurImage, dy, CV_16S, 0, 1);
-	Canny(dx, dy, edge2, edgeThreshScharr, edgeThreshScharr * 3);
-	/// Using Canny's output as a mask, we display our result
-	cedge = Scalar::all(0);
-	image.copyTo(cedge, edge2);
-	imshow(window_name2, cedge);
-}
-
-static void help()
-{
-	printf("\nThis sample demonstrates Canny edge detection\n"
-		"Call:\n"
-		"    /.edge [image_name -- Default is ../data/fruits.jpg]\n\n");
-}
-
-const char* keys =
-{
-	"{help h||}{@image |../data/fruits.jpg|input image name}"
-};
-
-int main(int argc, const char** argv)
-{
-	CommandLineParser parser(argc, argv, keys);
-	if (parser.has("help"))
+	if (!cap.isOpened())  // if not success, exit program
 	{
-		help();
-		return 0;
-	}
-	string filename = parser.get<string>(0);
-
-	image = imread(filename, 1);
-	if (image.empty())
-	{
-		printf("Cannot read image file: %s\n", filename.c_str());
-		help();
+		cout << "Cannot open the video cam" << endl;
 		return -1;
 	}
-	cedge.create(image.size(), image.type());
-	cvtColor(image, gray, COLOR_BGR2GRAY);
 
-	// Create a window
-	namedWindow(window_name1, 1);
-	namedWindow(window_name2, 1);
+	double dWidth = cap.get(CV_CAP_PROP_FRAME_WIDTH); //get the width of frames of the video
+	double dHeight = cap.get(CV_CAP_PROP_FRAME_HEIGHT); //get the height of frames of the video
 
-	// create a toolbar
-	createTrackbar("Canny threshold default", window_name1, &edgeThresh, 100, onTrackbar);
-	createTrackbar("Canny threshold Scharr", window_name2, &edgeThreshScharr, 400, onTrackbar);
+	cout << "Frame size : " << dWidth << " x " << dHeight << endl;
 
-	// Show the image
-	onTrackbar(0, 0);
+	namedWindow("MyVideo", CV_WINDOW_AUTOSIZE); //create a window called "MyVideo"
+	int i = 0;
+	char cesta[25];
+	
+	while (1)
+	{
+		Mat frame;
+		i++;
+		bool bSuccess = cap.read(frame); // read a new frame from video
 
-	// Wait for a key stroke; the same function arranges events processing
-	waitKey(0);
+		if (!bSuccess) //if not success, break loop
+		{
+			cout << "Cannot read a frame from video stream" << endl;
+			break;
+		}
+
+
+		sprintf(cesta, "../Images/image_%i.bmp", i);
+		imwrite(cesta, frame);
+
+		imshow("MyVideo", frame); //show the frame in "MyVideo" window
+
+		if (waitKey(30) == 27) //wait for 'esc' key press for 30ms. If 'esc' key is pressed, break loop
+		{
+			cout << "esc key is pressed by user" << endl;
+			break;
+		}
+
+	}
+	i = 0;
+
+	while (1)
+	{
+		Mat frame;
+		i++;
+		sprintf(cesta, "../Images/image_%d.bmp", i);
+		frame = imread(cesta,CV_LOAD_IMAGE_COLOR);
+		if (!frame.data) break;
+
+		imshow("MyVieo", frame); //show the frame in "MyVideo" window
+
+		if (waitKey(30)==27) //wait for 'esc' key press for 30ms. If 'esc' key is pressed, break loop
+		{
+			cout << "esc key is pressed by user" << endl;
+			break;
+		}
+		
+	}
+
 
 	return 0;
+
 }
