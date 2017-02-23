@@ -14,10 +14,14 @@ using namespace std;
 // functions
 void menu(void);
 static void onTrackbar_tunning(int, void*);
+void averageHSV(Vec3i circle);
+void colorRange(void);
 
 // variables
-Mat frame, gray_img, blured_img, edge_img;
+Mat frame, gray_img, blured_img, edge_img, copy_fr, hsv_img;
 int medianBlurstep = 5, cannyStep = 50, HC_maxr = 50, HC_minr = 49, HC_accthreshold = 50, HC_dist = 250, save = 0;
+int avrg_H, avrg_S, avrg_V;
+Scalar circle_color;
 vector<Vec3f> circles;
 
 int main(int argc, char* argv[])
@@ -31,6 +35,7 @@ int main(int argc, char* argv[])
 	int mode;
 	double dWidth;
 	double dHeight;
+	int pom = 0;
 
 
 	while (1)
@@ -159,17 +164,18 @@ int main(int argc, char* argv[])
 			namedWindow("Original Image", CV_WINDOW_AUTOSIZE); //create a window called "MyVideo"
 			namedWindow("Tunning", CV_WINDOW_AUTOSIZE);
 
-			createTrackbar("Median", "Tunning", &medianBlurstep, 10, onTrackbar_tunning);
+			createTrackbar("Median", "Tunning", &medianBlurstep, 20, onTrackbar_tunning);
 			createTrackbar("Canny", "Tunning", &cannyStep, 100, onTrackbar_tunning);
 			createTrackbar("HC_dist", "Tunning", &HC_dist, 1080, onTrackbar_tunning);
 			createTrackbar("HC_ACC", "Tunning", &HC_accthreshold, 100, onTrackbar_tunning);
-			createTrackbar("HC_maxr", "Tunning", &HC_maxr, 100, onTrackbar_tunning);
-			createTrackbar("HC_minr", "Tunning", &HC_minr, 100, onTrackbar_tunning);
+			createTrackbar("HC_maxr", "Tunning", &HC_maxr, 1000, onTrackbar_tunning);
+			createTrackbar("HC_minr", "Tunning", &HC_minr, 1000, onTrackbar_tunning);
 			createTrackbar("SAVE", "Tunning", &save, 1, onTrackbar_tunning);
+			
 
 			while (1)
 			{
-				
+				pom++;
 				sprintf(cesta, "../Images/%s_%d.bmp", nazov, 1);
 				frame = imread(cesta, CV_LOAD_IMAGE_COLOR);
 				if (!frame.data)
@@ -180,9 +186,16 @@ int main(int argc, char* argv[])
 				}
 				
 				imshow("Original Image", frame);
-				
+				copy_fr = frame;
 				// convert original RGB image to grayscale image
-				cvtColor(frame, gray_img, COLOR_BGR2GRAY);
+				//cvtColor(frame, gray_img, COLOR_BGR2GRAY);
+				cvtColor(frame, hsv_img, COLOR_BGR2HSV);
+
+				vector<Mat> hsv_planes;
+				split(hsv_img, hsv_planes);
+				Mat s = hsv_planes[1];
+
+				gray_img = s;
 
 				// apply median blur
 				medianBlur(gray_img, blured_img, medianBlurstep * 2 - 1);
@@ -194,13 +207,26 @@ int main(int argc, char* argv[])
 
 				// detect circles using Hough transform
 				HoughCircles(edge_img, circles, HOUGH_GRADIENT, 1, HC_dist , cannyStep * 3, HC_accthreshold , HC_minr, HC_maxr);
+				
 				for (size_t i = 0; i < circles.size(); i++)
 				{
 					Vec3i c = circles[i];
-					circle(frame, Point(c[0], c[1]), c[2], Scalar(0, 0, 255), 3, LINE_AA);
-					circle(frame, Point(c[0], c[1]), 2, Scalar(0, 255, 0), 3, LINE_AA);
+					
+
+					averageHSV(c);
+					colorRange();
+
+					if (pom % 100 == 0)
+					{
+						cout << "H : " << avrg_H << " S : " << avrg_S << " V : " << avrg_V << endl;
+						pom = 0;
+					}
+
+					circle(frame, Point(c[0], c[1]), c[2], circle_color, 3, LINE_AA);
+					circle(frame, Point(c[0], c[1]), 2, Scalar(255,0,0), 3, LINE_AA);
 				}
-				imshow("Original Image", frame);	
+
+				imshow("Original Image", copy_fr);
 				waitKey(9);
 				if (save) 
 				{
@@ -252,4 +278,53 @@ static void onTrackbar_tunning(int, void*)
 	if (HC_minr == 0) HC_minr = 1;
 	if (HC_accthreshold == 0) HC_accthreshold = 1;
 
+}
+
+
+void averageHSV(Vec3i circle)
+{
+	Mat hsv_pixel[] = { 
+		hsv_img(Rect(circle[0], circle[1] + 5, 1, 1)),hsv_img(Rect(circle[0], circle[1] - 5, 1, 1)),
+		hsv_img(Rect(circle[0] + 5, circle[1], 1, 1)),hsv_img(Rect(circle[0] - 5, circle[1], 1, 1)),
+		hsv_img(Rect(circle[0], circle[1], 1, 1)) };
+
+	avrg_H = 0, avrg_S = 0, avrg_V = 0;
+	for (int i = 0; i < 5; i++)
+	{
+		Vec3b hsv = hsv_pixel[i].at<Vec3b>(0,0);
+		avrg_H += hsv[0];
+		avrg_S += hsv[1];
+		avrg_V += hsv[2];
+	}
+
+	avrg_H /= 5;
+	avrg_S /= 5;
+	avrg_V /= 5;
+
+}
+
+
+void colorRange(void)
+{
+	if (avrg_V <= 255 * 0.1) // black
+		circle_color = Scalar(0, 0, 0);
+	else if (avrg_V >= 255 * 0.9 && avrg_S <= 255 * 0.1)	//white
+		circle_color = Scalar(255, 255, 255);
+	else if ((avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 226) ||
+		(avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H < 10)) // red
+		circle_color = Scalar(0, 0, 255);
+	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 10 && avrg_H < 32) // orange
+		circle_color = Scalar(0, 165, 255);
+	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 32 && avrg_H < 56) // yellow
+		circle_color = Scalar(0, 255, 255);
+	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 56 && avrg_H < 113) // green
+		circle_color = Scalar(0, 255, 0);
+	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 113 && avrg_H < 141) // cyan
+		circle_color = Scalar(255, 255, 0);
+	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 141 && avrg_H < 184) // blue
+		circle_color = Scalar(255, 0, 0);
+	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 141 && avrg_H < 226) // magenta
+		circle_color = Scalar(255, 0, 255);
+	else if (avrg_V < 255 * 0.8 && avrg_S < 255 * 0.2) // gray
+		circle_color = Scalar(128, 128, 128);
 }
