@@ -21,6 +21,7 @@ void colorRange(void);
 Mat frame, gray_img, blured_img, edge_img, copy_fr, hsv_img;
 int medianBlurstep = 5, cannyStep = 50, HC_maxr = 50, HC_minr = 49, HC_accthreshold = 50, HC_dist = 250, save = 0;
 int avrg_H, avrg_S, avrg_V;
+char color[10];
 Scalar circle_color;
 vector<Vec3f> circles;
 
@@ -199,11 +200,11 @@ int main(int argc, char* argv[])
 
 				// apply median blur
 				medianBlur(gray_img, blured_img, medianBlurstep * 2 - 1);
-				imshow("Median Blur", blured_img);
+				//imshow("Median Blur", hsv_img);
 
 				// canny edge detection
 				Canny(blured_img, edge_img, cannyStep, cannyStep * 3, 3);
-				imshow("Canny edge", edge_img);
+				//imshow("Canny edge", edge_img);
 
 				// detect circles using Hough transform
 				HoughCircles(edge_img, circles, HOUGH_GRADIENT, 1, HC_dist , cannyStep * 3, HC_accthreshold , HC_minr, HC_maxr);
@@ -212,18 +213,25 @@ int main(int argc, char* argv[])
 				{
 					Vec3i c = circles[i];
 					
-
-					averageHSV(c);
-					colorRange();
-
-					if (pom % 100 == 0)
+					// if circle is inside frame
+					if (c[1] + c[2] <= frame.rows && c[1] - c[2] >= 0 &&
+						c[0] + c[2] <= frame.cols && c[0] - c[2] >= 0)
 					{
-						cout << "H : " << avrg_H << " S : " << avrg_S << " V : " << avrg_V << endl;
-						pom = 0;
-					}
+						averageHSV(c);
+						colorRange();
 
-					circle(frame, Point(c[0], c[1]), c[2], circle_color, 3, LINE_AA);
-					circle(frame, Point(c[0], c[1]), 2, Scalar(255,0,0), 3, LINE_AA);
+						if (pom % 100 == 0)
+						{
+							cout << "H : " << avrg_H << " S : " << avrg_S << " V : " << avrg_V << endl;
+							pom = 0;
+						}
+						char text[25];
+						sprintf(text, "H=%d S=%d V=%d", avrg_H, avrg_S, avrg_V);
+						circle(frame, Point(c[0], c[1]), c[2], circle_color, 3, LINE_AA);
+						circle(frame, Point(c[0], c[1]), 2, Scalar(255, 0, 0), 3, LINE_AA);
+						putText(frame, color, Point(c[0], c[1] - 20), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
+						putText(frame, text, Point(c[0] - c[2] + 5, c[1] - 2), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
+					}
 				}
 
 				imshow("Original Image", copy_fr);
@@ -283,48 +291,69 @@ static void onTrackbar_tunning(int, void*)
 
 void averageHSV(Vec3i circle)
 {
-	Mat hsv_pixel[] = { 
-		hsv_img(Rect(circle[0], circle[1] + 5, 1, 1)),hsv_img(Rect(circle[0], circle[1] - 5, 1, 1)),
-		hsv_img(Rect(circle[0] + 5, circle[1], 1, 1)),hsv_img(Rect(circle[0] - 5, circle[1], 1, 1)),
-		hsv_img(Rect(circle[0], circle[1], 1, 1)) };
+	Mat roi = hsv_img(Range(circle[1] - circle[2], circle[1] + circle[2] - circle[2]/4),
+					  Range(circle[0] - circle[2], circle[0] + circle[2] - circle[2]/4));
+	Mat1b mask(roi.rows, roi.cols);
+	Scalar mean_hsv = mean(roi, mask);
 
-	avrg_H = 0, avrg_S = 0, avrg_V = 0;
-	for (int i = 0; i < 5; i++)
-	{
-		Vec3b hsv = hsv_pixel[i].at<Vec3b>(0,0);
-		avrg_H += hsv[0];
-		avrg_S += hsv[1];
-		avrg_V += hsv[2];
-	}
-
-	avrg_H /= 5;
-	avrg_S /= 5;
-	avrg_V /= 5;
+	avrg_H = (int)mean_hsv[0];
+	avrg_S = (int)mean_hsv[1];
+	avrg_V = (int)mean_hsv[2];
 
 }
 
 
 void colorRange(void)
 {
-	if (avrg_V <= 255 * 0.1) // black
+	if (avrg_V <= 255 * 0.1)
+	{
 		circle_color = Scalar(0, 0, 0);
-	else if (avrg_V >= 255 * 0.9 && avrg_S <= 255 * 0.1)	//white
+		sprintf(color, "Black");
+	}
+	else if (avrg_V >= 255 * 0.9 && avrg_S <= 255 * 0.1)
+	{
 		circle_color = Scalar(255, 255, 255);
-	else if ((avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 226) ||
-		(avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H < 10)) // red
+		sprintf(color, "White");
+	}
+	else if ((avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 170) ||
+		(avrg_V >= 100 && avrg_S >= 50 && avrg_H < 10))
+	{
 		circle_color = Scalar(0, 0, 255);
-	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 10 && avrg_H < 32) // orange
+		sprintf(color, "Red");
+	}
+	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 10 && avrg_H < 22)
+	{
 		circle_color = Scalar(0, 165, 255);
-	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 32 && avrg_H < 56) // yellow
+		sprintf(color, "Orange");
+	}
+	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 22 && avrg_H < 40)
+	{
 		circle_color = Scalar(0, 255, 255);
-	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 56 && avrg_H < 113) // green
+		sprintf(color, "Yellow");
+	}
+	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 40 && avrg_H < 80)
+	{
 		circle_color = Scalar(0, 255, 0);
-	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 113 && avrg_H < 141) // cyan
+		sprintf(color, "Green");
+	}
+	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 80 && avrg_H < 100)
+	{
 		circle_color = Scalar(255, 255, 0);
-	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 141 && avrg_H < 184) // blue
+		sprintf(color, "Cyan");
+	}
+	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 100 && avrg_H < 130)
+	{
 		circle_color = Scalar(255, 0, 0);
-	else if (avrg_V >= 255 * 0.8 && avrg_S >= 255 * 0.2 && avrg_H >= 141 && avrg_H < 226) // magenta
+		sprintf(color, "Blue");
+	}
+	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 130 && avrg_H < 170)
+	{
 		circle_color = Scalar(255, 0, 255);
-	else if (avrg_V < 255 * 0.8 && avrg_S < 255 * 0.2) // gray
+		sprintf(color, "Magenta");
+	}
+	else if (avrg_V < 255 * 0.8 && avrg_S < 50)
+	{
 		circle_color = Scalar(128, 128, 128);
+		sprintf(color, "Gray");
+	}
 }
