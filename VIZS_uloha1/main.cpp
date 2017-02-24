@@ -4,23 +4,26 @@
 #include "opencv2/imgproc.hpp"
 #include <iostream>
 #include <ctime>
-#include <chrono>
+#include <cmath>
 
 
 
 using namespace cv;
 using namespace std;
 
-// functions
+/* functions */
 void menu(void);
 static void onTrackbar_tunning(int, void*);
 void averageHSV(Vec3i circle);
 void colorRange(void);
+void xyPosition(int x_pixel, int r_pixel, int x_center);
 
-// variables
+/* variables */
 Mat frame, gray_img, blured_img, edge_img, copy_fr, hsv_img;
-int medianBlurstep = 5, cannyStep = 50, HC_maxr = 50, HC_minr = 49, HC_accthreshold = 50, HC_dist = 250, save = 0;
-int avrg_H, avrg_S, avrg_V;
+int medianBlurstep = 5, cannyStep = 50, HC_maxr = 50, HC_minr = 49, HC_accthreshold = 50, HC_dist = 250, save = 0; // used in tunnig
+int avrg_H, avrg_S, avrg_V; // used in color detection
+double x_cm, y_cm;
+const int r_cm = 10; // radius of the object in cm
 char color[10];
 Scalar circle_color;
 vector<Vec3f> circles;
@@ -36,7 +39,6 @@ int main(int argc, char* argv[])
 	int mode;
 	double dWidth;
 	double dHeight;
-	int pom = 0;
 
 
 	while (1)
@@ -219,18 +221,18 @@ int main(int argc, char* argv[])
 					{
 						averageHSV(c);
 						colorRange();
+						xyPosition(c[0], c[2], frame.cols / 2);
 
-						if (pom % 100 == 0)
-						{
-							cout << "H : " << avrg_H << " S : " << avrg_S << " V : " << avrg_V << endl;
-							pom = 0;
-						}
-						char text[25];
-						sprintf(text, "H=%d S=%d V=%d", avrg_H, avrg_S, avrg_V);
+						char text_hsv[25];
+						char text_xy[25];
+
+						sprintf(text_hsv, "H=%d S=%d V=%d", avrg_H, avrg_S, avrg_V);
+						sprintf(text_xy, "X=%4.2lf cm, Y=%4.2lf cm", x_cm, y_cm);
 						circle(frame, Point(c[0], c[1]), c[2], circle_color, 3, LINE_AA);
 						circle(frame, Point(c[0], c[1]), 2, Scalar(255, 0, 0), 3, LINE_AA);
 						putText(frame, color, Point(c[0], c[1] - 20), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
-						putText(frame, text, Point(c[0] - c[2] + 5, c[1] - 2), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
+						putText(frame, text_hsv, Point(c[0] - c[2] + 5, c[1] - 2), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
+						putText(frame, text_xy, Point(c[0] - c[2] + 5, c[1] + 18), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
 					}
 				}
 
@@ -305,12 +307,12 @@ void averageHSV(Vec3i circle)
 
 void colorRange(void)
 {
-	if (avrg_V <= 255 * 0.1)
+	if (avrg_V <= 30)
 	{
 		circle_color = Scalar(0, 0, 0);
 		sprintf(color, "Black");
 	}
-	else if (avrg_V >= 255 * 0.9 && avrg_S <= 255 * 0.1)
+	else if (avrg_V >= 220 && avrg_S < 50)
 	{
 		circle_color = Scalar(255, 255, 255);
 		sprintf(color, "White");
@@ -351,9 +353,22 @@ void colorRange(void)
 		circle_color = Scalar(255, 0, 255);
 		sprintf(color, "Magenta");
 	}
-	else if (avrg_V < 255 * 0.8 && avrg_S < 50)
+	else if (avrg_V < 220 && avrg_S < 50)
 	{
 		circle_color = Scalar(128, 128, 128);
 		sprintf(color, "Gray");
+	}
+}
+
+void xyPosition(int x_pixel, int r_pixel, int x_center)
+{
+	double p[] = { 5.0917e-08,-7.0889e-05, 0.037323,-9.258,1083.2 };	// hodnoty z bakalarky
+	
+	y_cm = pow((double)p[0]* r_pixel,4) + pow(p[1]* r_pixel,3)+ pow(p[2]* r_pixel,2)+ p[3]* r_pixel + p[4];
+
+	// minimum distance between object and camera to compute "x_cm" is 20 cm 
+	if (y_cm > 20.0)
+	{
+		x_cm = (x_pixel - x_center)*y_cm/100;	// hruby odhad
 	}
 }
