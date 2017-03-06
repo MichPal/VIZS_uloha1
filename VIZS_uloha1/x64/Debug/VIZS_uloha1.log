@@ -1,3 +1,4 @@
 ﻿  main.cpp
+d:\skola\skola\4.roc\ls\vs\cviko\vizs_uloha1\vizs_uloha1\main.cpp(353): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
   VIZS_uloha1.vcxproj -> D:\Skola\Skola\4.roc\LS\VS\CVIKO\VIZS_uloha1\x64\Debug\VIZS_uloha1.exe
   VIZS_uloha1.vcxproj -> D:\Skola\Skola\4.roc\LS\VS\CVIKO\VIZS_uloha1\x64\Debug\VIZS_uloha1.pdb (Full PDB)

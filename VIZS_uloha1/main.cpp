@@ -14,23 +14,23 @@ using namespace std;
 /* functions */
 void menu(void);
 static void onTrackbar_tunning(int, void*);
-void averageHSV(Vec3i circle);
+void meanHSV(Vec3i circle);
 void colorRange(void);
 void xyPosition(int x_pixel, int r_pixel, int x_center);
 
 /* variables */
-Mat frame, gray_img, blured_img, edge_img, copy_fr, hsv_img;
+Mat frame, gray_img, blured_img, edge_img, hsv_img;
 int medianBlurstep = 5, cannyStep = 50, HC_maxr = 50, HC_minr = 49, HC_accthreshold = 50, HC_dist = 250, save = 0; // used in tunnig
 int avrg_H, avrg_S, avrg_V; // used in color detection
 double x_cm, y_cm;
 const int r_cm = 10; // radius of the object in cm
-char color[10];
+char text_color[10];
 Scalar circle_color;
 vector<Vec3f> circles;
 
 int main(int argc, char* argv[])
 {
-	VideoCapture cap(0); // open the video camera no. 0
+	VideoCapture cap(1); // open the video camera no. 0
 	Mat frame;
 	int32_t i = 0;
 	int numberOfFrames;
@@ -150,7 +150,56 @@ int main(int argc, char* argv[])
 					destroyWindow("Video Replay");
 					break;
 				}
-				imshow("Video Replay", frame); //show the frame in "MyVideo" window
+				
+				imshow("Original Image", frame);
+
+				/* Convert original RGB image to HSV image */
+				cvtColor(frame, hsv_img, COLOR_BGR2HSV);
+
+				/* Separation of HSV image into H, S, V planes */
+				vector<Mat> hsv_planes;
+				split(hsv_img, hsv_planes);
+				Mat s = hsv_planes[1];
+
+				/* Choosing Saturation plane as grayscale image for next steps */
+				gray_img = s;
+
+				/* Apply median blur */
+				medianBlur(gray_img, blured_img, medianBlurstep * 2 - 1);
+				
+				/* Detect circles using Hough transform */
+				HoughCircles(blured_img, circles, HOUGH_GRADIENT, 2, HC_dist, 200, HC_accthreshold, HC_minr, HC_maxr);
+
+				for (size_t i = 0; i < circles.size(); i++)
+				{
+					Vec3i c = circles[i];
+
+					/* If circle is inside of the image */
+					if (c[1] + c[2] <= frame.rows && c[1] - c[2] >= 0 &&
+						c[0] + c[2] <= frame.cols && c[0] - c[2] >= 0)
+					{
+						/* Compute mean HSV values */
+						meanHSV(c);
+
+						/* Define RGB color based on HSV values */
+						colorRange();
+
+						/* Calculate x, y coordinates of the object in real units */
+						xyPosition(c[0], c[2], frame.cols / 2);
+
+						char text_xy[25];
+
+						sprintf(text_xy, "X=%4.2lf cm, Y=%4.2lf cm", x_cm, y_cm);
+
+						/* Show result in original image*/
+						circle(frame, Point(c[0], c[1]), c[2], circle_color, 3, LINE_AA);
+						circle(frame, Point(c[0], c[1]), 2, Scalar(255, 0, 0), 3, LINE_AA);
+						putText(frame, text_color, Point(c[0], c[1] - 20), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
+						putText(frame, text_xy, Point(c[0] - c[2] + 5, c[1] + 18), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
+					}
+				}
+
+				imshow("Original Image", frame);
 
 				if (waitKey(50) == 27) break;
 
@@ -161,6 +210,7 @@ int main(int argc, char* argv[])
 =================================================== Detection ==================================================
 ================================================================================================================*/
 		case 4:
+			save = 0;
 			i = 0;
 			cout << "Zadaj nazov suboru " << endl;
 			cin >> nazov;
@@ -178,8 +228,8 @@ int main(int argc, char* argv[])
 
 			while (1)
 			{
-				pom++;
-				sprintf(cesta, "../Images/%s_%d.bmp", nazov, 1);
+
+				sprintf(cesta, "../Images/%s_%d.bmp",nazov,615);
 				frame = imread(cesta, CV_LOAD_IMAGE_COLOR);
 				if (!frame.data)
 				{
@@ -189,55 +239,61 @@ int main(int argc, char* argv[])
 				}
 				
 				imshow("Original Image", frame);
-				copy_fr = frame;
-				// convert original RGB image to grayscale image
-				//cvtColor(frame, gray_img, COLOR_BGR2GRAY);
+
+				/* Convert original RGB image to HSV image */
 				cvtColor(frame, hsv_img, COLOR_BGR2HSV);
 
+				/* Separation of HSV image into H, S, V planes */
 				vector<Mat> hsv_planes;
 				split(hsv_img, hsv_planes);
 				Mat s = hsv_planes[1];
-
+				
+				/* Choosing Saturation plane as grayscale image for next steps */
 				gray_img = s;
-
-				// apply median blur
+				
+				/* Apply median blur */
 				medianBlur(gray_img, blured_img, medianBlurstep * 2 - 1);
-				//imshow("Median Blur", hsv_img);
+				imshow("Median Blur", blured_img);
 
-				// canny edge detection
-				Canny(blured_img, edge_img, cannyStep, cannyStep * 3, 3);
-				//imshow("Canny edge", edge_img);
-
-				// detect circles using Hough transform
-				HoughCircles(edge_img, circles, HOUGH_GRADIENT, 1, HC_dist , cannyStep * 3, HC_accthreshold , HC_minr, HC_maxr);
+				/* Detect circles using Hough transform */
+				HoughCircles(blured_img, circles, HOUGH_GRADIENT, 2, HC_dist , 200, HC_accthreshold , HC_minr, HC_maxr);
 				
 				for (size_t i = 0; i < circles.size(); i++)
 				{
 					Vec3i c = circles[i];
 					
-					// if circle is inside frame
+					/* If circle is inside of the image */
 					if (c[1] + c[2] <= frame.rows && c[1] - c[2] >= 0 &&
 						c[0] + c[2] <= frame.cols && c[0] - c[2] >= 0)
 					{
-						averageHSV(c);
+						/* Compute mean HSV values */
+						meanHSV(c);
+
+						/* Define RGB color based on HSV values */
 						colorRange();
+
+						/* Calculate x, y coordinates of the object in real units */
 						xyPosition(c[0], c[2], frame.cols / 2);
 
 						char text_hsv[25];
 						char text_xy[25];
 
-						sprintf(text_hsv, "H=%d S=%d V=%d", avrg_H, avrg_S, avrg_V);
+						//sprintf(text_hsv, "H=%d S=%d V=%d", avrg_H, avrg_S, avrg_V);
+						sprintf(text_hsv, "r = %d", c[0] - frame.cols / 2);
 						sprintf(text_xy, "X=%4.2lf cm, Y=%4.2lf cm", x_cm, y_cm);
+
+						/* Show result in original image*/
 						circle(frame, Point(c[0], c[1]), c[2], circle_color, 3, LINE_AA);
 						circle(frame, Point(c[0], c[1]), 2, Scalar(255, 0, 0), 3, LINE_AA);
-						putText(frame, color, Point(c[0], c[1] - 20), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
+						putText(frame, text_color, Point(c[0], c[1] - 20), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
 						putText(frame, text_hsv, Point(c[0] - c[2] + 5, c[1] - 2), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
 						putText(frame, text_xy, Point(c[0] - c[2] + 5, c[1] + 18), FONT_HERSHEY_COMPLEX, .4, Scalar(0, 0, 0));
 					}
 				}
 
-				imshow("Original Image", copy_fr);
+				imshow("Original Image", frame);
 				waitKey(9);
+
 				if (save) 
 				{
 					cout << "Parameters saved!" << endl;
@@ -278,7 +334,7 @@ void menu(void)
 	printf("%c%s%c\n", 200, riadok, 188);
 }
 
-
+/* Trackbar function */
 static void onTrackbar_tunning(int, void*)
 {
 	if (medianBlurstep == 0) medianBlurstep = 1;
@@ -290,11 +346,12 @@ static void onTrackbar_tunning(int, void*)
 
 }
 
-
-void averageHSV(Vec3i circle)
+/* Function is used to compute mean HSV values inside detected circle */
+void meanHSV(Vec3i circle)
 {
-	Mat roi = hsv_img(Range(circle[1] - circle[2], circle[1] + circle[2] - circle[2]/4),
-					  Range(circle[0] - circle[2], circle[0] + circle[2] - circle[2]/4));
+	
+	int a = circle[2]/sqrt(2);
+	Mat roi = hsv_img(Range(circle[1] - a, circle[1] + a), Range(circle[0] - a, circle[0] + a));
 	Mat1b mask(roi.rows, roi.cols);
 	Scalar mean_hsv = mean(roi, mask);
 
@@ -304,71 +361,59 @@ void averageHSV(Vec3i circle)
 
 }
 
-
+/* Function defines RGB color from HSV ranges */
 void colorRange(void)
 {
 	if (avrg_V <= 30)
 	{
 		circle_color = Scalar(0, 0, 0);
-		sprintf(color, "Black");
+		sprintf(text_color, "Black");
 	}
-	else if (avrg_V >= 220 && avrg_S < 50)
+	else if (avrg_V >= 220 && avrg_S < 40)
 	{
 		circle_color = Scalar(255, 255, 255);
-		sprintf(color, "White");
+		sprintf(text_color, "White");
 	}
-	else if ((avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 170) ||
-		(avrg_V >= 100 && avrg_S >= 50 && avrg_H < 10))
+	else if ((avrg_V >= 40 && avrg_S >= 40 && avrg_H >= 150) ||
+		(avrg_V >= 100 && avrg_S >= 50 && avrg_H < 22))
 	{
 		circle_color = Scalar(0, 0, 255);
-		sprintf(color, "Red");
+		sprintf(text_color, "Red");
 	}
-	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 10 && avrg_H < 22)
-	{
-		circle_color = Scalar(0, 165, 255);
-		sprintf(color, "Orange");
-	}
-	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 22 && avrg_H < 40)
+	else if (avrg_V >= 40 && avrg_S >= 40 && avrg_H >= 22 && avrg_H < 40)
 	{
 		circle_color = Scalar(0, 255, 255);
-		sprintf(color, "Yellow");
+		sprintf(text_color, "Yellow");
 	}
-	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 40 && avrg_H < 80)
+	else if (avrg_V >= 40 && avrg_S >= 40 && avrg_H >= 40 && avrg_H < 90)
 	{
 		circle_color = Scalar(0, 255, 0);
-		sprintf(color, "Green");
+		sprintf(text_color, "Green");
 	}
-	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 80 && avrg_H < 100)
-	{
-		circle_color = Scalar(255, 255, 0);
-		sprintf(color, "Cyan");
-	}
-	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 100 && avrg_H < 130)
+	else if (avrg_V >= 40 && avrg_S >= 40 && avrg_H >= 90 && avrg_H < 150)
 	{
 		circle_color = Scalar(255, 0, 0);
-		sprintf(color, "Blue");
+		sprintf(text_color, "Blue");
 	}
-	else if (avrg_V >= 100 && avrg_S >= 50 && avrg_H >= 130 && avrg_H < 170)
-	{
-		circle_color = Scalar(255, 0, 255);
-		sprintf(color, "Magenta");
-	}
-	else if (avrg_V < 220 && avrg_S < 50)
+	else if (avrg_V < 220 && avrg_S < 40)
 	{
 		circle_color = Scalar(128, 128, 128);
-		sprintf(color, "Gray");
+		sprintf(text_color, "Gray");
 	}
 }
 
+/* Function is used to calculate x, y coordinates of the object in real world units [cm] */
 void xyPosition(int x_pixel, int r_pixel, int x_center)
 {
-	double p[] = { 5.0917e-08,-7.0889e-05, 0.037323,-9.258,1083.2 };	// hodnoty z bakalarky
-	
-	y_cm = pow((double)p[0]* r_pixel,4) + pow(p[1]* r_pixel,3)+ pow(p[2]* r_pixel,2)+ p[3]* r_pixel + p[4];
+	double p[] = { -0.00037519,0.090693, -7.8964,291.98 };
 
-	// minimum distance between object and camera to compute "x_cm" is 20 cm 
-	if (y_cm > 20.0)
+	y_cm = p[0]*pow( r_pixel,3) + p[1]*pow(r_pixel,2)+ p[2]* r_pixel+ p[3];
+
+	// minimum distance between object and camera to compute "x_cm" is 40 cm 
+	if (y_cm > 40.0)
 	{
-		x_cm = (x_pixel - x_center)*y_cm/100;	// hruby odhad
+		double px[] = { -0.00012175 , 0.0012297, 0.3755 };
+		// dost nepresne, treba nove meranie
+		x_cm = px[0] * pow((x_pixel - x_center), 2) + px[1]* y_cm * abs(x_pixel - x_center) + px[2];
 	}
 }
