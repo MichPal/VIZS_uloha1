@@ -377,7 +377,7 @@ while (1) {
 	imshow("Median Blur", blured_img);
 	HoughCircles(blured_img, circles, HOUGH_GRADIENT, 2, HC_dist, 200, HC_accthreshold, HC_minr, HC_maxr);
 //	HoughCircles(blured_img, circles, HOUGH_GRADIENT, 2, 325, 200, 24, 30, 500);
-	Vec3i out;
+	Vec3i out = NULL;
 	for (size_t i = 0; i < 1; i++)
 		{
 			Vec3i c = circles[i];
@@ -505,9 +505,9 @@ void colorRange(void)
 /* Function is used to calculate x, y coordinates of the object in real world units [cm] */
 void xyPosition(int x_pixel, int r_pixel, int x_center)
 {
-	double p[] = { -0.00037519,0.090693, -7.8964,291.98 };
+	double p_y[] = { -0.000339, 0.0891, -8.18, 306 };
 
-	y_cm = p[0]*pow( r_pixel,3) + p[1]*pow(r_pixel,2)+ p[2]* r_pixel+ p[3];
+	y_cm = p_y[0]*pow( r_pixel,3) + p_y[1]*pow(r_pixel,2)+ p_y[2]* r_pixel+ p_y[3];
 
 	// minimum distance between object and camera to compute "x_cm" is 40 cm 
 	if (y_cm > 40.0)
