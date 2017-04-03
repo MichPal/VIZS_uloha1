@@ -14,7 +14,7 @@ using namespace std;
 /* functions */
 void menu(void);
 static void onTrackbar_tunning(int, void*);
-void defineColor(int x, int y ,int r);
+void defineColor(int x, int y, int r);
 void xyPosition(double *x, double *y, int x_pixel, int r_pixel);
 void drawCircles(void);
 
@@ -45,8 +45,8 @@ int main(int argc, char* argv[])
 		cin >> mode;
 		switch (mode)
 		{
-		/************** Detection from camera input **************/
-		case 1:		
+			/************** Detection from camera input **************/
+		case 1:
 			if (!cap.isOpened())  // if not success, exit program
 			{
 				cout << "Cannot open the video cam" << endl;
@@ -96,7 +96,7 @@ int main(int argc, char* argv[])
 			destroyWindow("blured image view");
 			break;
 
-		/************* Capture mode *************/
+			/************* Capture mode *************/
 		case 2:
 			if (!cap.isOpened())  // if not success, exit program
 			{
@@ -139,12 +139,12 @@ int main(int argc, char* argv[])
 			destroyWindow("Video Capture");
 			break;
 
-		/************* Detection from replay mode *************/
+			/************* Detection from replay mode *************/
 		case 3:
 			i = 0;
 			cout << "Zadaj nazov suboru " << endl;
 			cin >> nazov;
-			namedWindow("Video Replay", CV_WINDOW_AUTOSIZE); 
+			namedWindow("Video Replay", CV_WINDOW_AUTOSIZE);
 			while (1)
 			{
 				i++;
@@ -183,7 +183,7 @@ int main(int argc, char* argv[])
 			destroyWindow("Video Replay");
 			destroyWindow("Blured Video Replay");
 			break;
-		/************** Parameter Tunning mode **************/
+			/************** Parameter Tunning mode **************/
 		case 4:
 			i = 0;
 			cout << "Zadaj nazov obrazka " << endl;
@@ -200,7 +200,7 @@ int main(int argc, char* argv[])
 			createTrackbar("HC_maxr", "Tunning", &HC_maxr, 1000, onTrackbar_tunning);
 			createTrackbar("HC_minr", "Tunning", &HC_minr, 500, onTrackbar_tunning);
 			createTrackbar("SAVE", "Tunning", &save, 1, onTrackbar_tunning);
-			
+
 			while (1)
 			{
 				sprintf(cesta, "../Images/%s_%d.bmp", nazov, i);
@@ -329,7 +329,7 @@ void defineColor(int x, int y, int r)
 		circle_color = Scalar(129, 129, 129);
 		sprintf(text_color, "Undefined");
 	}
-	
+
 }
 
 /* Function is used to calculate x, y coordinates of the object in real world units [cm] */
